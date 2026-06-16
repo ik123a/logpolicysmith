@@ -1,0 +1,28 @@
+[project]
+name = "logpolicysmith"
+version = "0.1.0"
+description = "Generate security policies from AI agent behavior logs"
+authors = [{name = "Antigravity Team", email = "antigravity@example.com"}]
+license = {text = "Apache-2.0"}
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "click>=8.1.0",
+    "ollama>=0.1.0",
+    "pyyaml>=6.0",
+    "pydantic>=2.0.0",
+    "rich>=13.0.0",
+    "openai>=1.0.0"
+]
+
+
+[project.scripts]
+logpolicysmith = "src.cli:cli"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["src", "src.ingester", "src.summarizer", "src.generator", "src.output", "src.validator", "src.integrations"]
+

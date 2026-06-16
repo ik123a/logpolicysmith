@@ -1,0 +1,2 @@
+[console_scripts]
+logpolicysmith = src.cli:cli

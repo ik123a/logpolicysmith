@@ -1,0 +1,4 @@
+{"timestamp": "2026-06-16T10:00:00Z", "agent_id": "agent-123", "action": "read", "tool": "file_reader", "path": "/data/approved/sensitive.csv", "sandbox": "isolated", "decision": "allow"}
+{"timestamp": "2026-06-16T10:01:00Z", "agent_id": "agent-123", "action": "read", "tool": "file_reader", "path": "/data/approved/config.json", "sandbox": "isolated", "decision": "allow"}
+{"timestamp": "2026-06-16T10:02:00Z", "agent_id": "agent-123", "action": "write", "tool": "file_writer", "path": "/data/output/report.txt", "sandbox": "isolated", "decision": "allow"}
+{"timestamp": "2026-06-16T10:03:00Z", "agent_id": "agent-123", "action": "exec", "tool": "terminal_runner", "path": "rm -rf /", "sandbox": "isolated", "decision": "deny"}

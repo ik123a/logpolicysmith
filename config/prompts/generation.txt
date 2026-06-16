@@ -1,0 +1,18 @@
+You are a security policy expert. Based on the behavior summary below, generate a security policy in {format} format.
+
+Behavior Summary:
+{summary}
+
+Guidelines:
+1. Allow all actions that appear in the "Frequent Actions" and "Typical Workflow" sections
+2. Deny or restrict actions that appear in "Risk Indicators"
+3. Create specific rules for data access patterns
+4. Add audit logging for all actions
+5. Include a default-deny fallback
+
+Output ONLY the policy code. No explanations or wrapping text.
+If formatting as rego, provide valid Open Policy Agent Rego code starting with `package agent.policy`.
+If formatting as cel, provide valid Common Expression Language rules.
+If formatting as yaml, provide valid policy-as-code YAML rules.
+If formatting as vaultmind, provide a valid VaultMind YAML policy configuration starting with `version: "1.0"`, containing a list of `rules` with `allow` or `deny` patterns (such as `read(/path/*)` or `exec(tool_name)`), and `default_action: "deny"`.
+
