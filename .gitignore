@@ -48,3 +48,9 @@ local.properties
 *.7z
 *.rar
 .turbo/
+
+# Python packaging metadata
+*.egg-info/
+.eggs/
+build/
+
