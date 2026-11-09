@@ -1,196 +1,102 @@
-# 🛡️ LogPolicySmith
+# LogPolicySmith
 
-> **From Agent Behavior to Enforceable Policy — Automatically.**
+A Python CLI experiment that reads agent audit events, summarizes behavior with an LLM, and asks a second LLM pass to draft a policy. Output targets include Rego, CEL, generic YAML and a VaultMind-style YAML structure.
 
-LogPolicySmith is an offline-first, cloud-extensible policy-as-code generator. It ingests execution logs from AI coding agents (such as VaultMind audit trails or standard JSONL logs), aggregates actions/anomalies, and automatically synthesizes security policies using local LLMs (Ollama) or cloud providers (NVIDIA NIM, DeepSeek, OpenAI).
+**Generated output is a policy draft requiring human review and engine-specific validation.** This repository does not establish that a generated policy is safe, complete or ready to enforce.
 
----
-
-## ❓ Why LogPolicySmith?
-
-Security teams in regulated industries (finance, defense, healthcare) are blocked from using AI coding agents because they cannot verify what files, processes, or networks an agent will access. 
-
-**LogPolicySmith** bridges this gap:
-1. It records and aggregates actual agent tool-use patterns.
-2. It uses an LLM to extract typical behavior workflows vs. risky actions.
-3. It generates ready-to-enforce rules in standard formats (**OPA Rego**, **Google CEL**, or native **VaultMind YAML**).
+## Data flow
 
 ```mermaid
 flowchart LR
-    subgraph Logs ["Input Sources"]
-        JSONL["JSONL log files"]
-        SQLite[("vault.db / audit.db<br>(VaultMind SQLite)")]
-    end
-
-    subgraph Core ["LogPolicySmith CLI Engine"]
-        Ingester["Log Ingester & Normalizer"]
-        Pass1["Pass 1: Behavior Analyzer<br>(Summarize Workflow & Anomalies)"]
-        Pass2["Pass 2: Policy Writer<br>(Synthesize Policy Rules)"]
-    end
-
-    subgraph LLM ["LLM Providers"]
-        Ollama["Ollama (Local Llama 3)"]
-        NVIDIA["NVIDIA NIM Catalog"]
-        OpenAI["Generic OpenAI API"]
-    end
-
-    subgraph Output ["Security Policies"]
-        Rego["Open Policy Agent (Rego)"]
-        CEL["Common Expression Language"]
-        Vault["VaultMind policy.yaml"]
-    end
-
-    Logs --> Ingester
-    Ingester --> Pass1
-    Pass1 <--> LLM
-    Pass1 --> Pass2
-    Pass2 <--> LLM
-    Pass2 --> Output
+  JSONL[JSONL audit events] --> Normalize[Normalize fields]
+  SQLite[Explicit VaultMind SQLite input] --> Normalize
+  Normalize --> Summary[Pass 1: behavior summary]
+  Summary --> Draft[Pass 2: policy draft]
+  Draft --> Output[Display selected output format]
+  Output --> Review[Human review and external engine validation]
 ```
 
----
+`--mock` replaces both model passes with fixed demonstration content. It exercises the CLI/formatting path; it does not infer a policy from the supplied events.
 
-## ✨ Features
+## Install and try without a model
 
-*   **Offline-First & Local-First**: Fully compatible with local **Ollama** model servers (defaults to `llama3.2:3b`) for strict air-gapped environments.
-*   **Extensible Cloud Providers**: Out-of-the-box support for the **NVIDIA API Catalog** (targeting `meta/llama-3.1-70b-instruct`) and any generic **OpenAI-compatible** endpoints (DeepSeek, Groq, Together AI, etc.).
-*   **VaultMind Native Alignment**: Supports parsing VaultMind SQLite logs directly via `--db-path`, and formats rules into VaultMind's custom `policy.yaml` pattern language.
-*   **Multi-Engine Targets**: Compile logs to OPA Rego rules, Google CEL expressions, standard YAML structures, or VaultMind policies.
+Python 3.9+ is declared by `pyproject.toml`. From a source checkout:
 
----
-
-## 🚀 Getting Started
-
-### 1. Installation
-
-Install the package in editable mode from the source directory:
-
-```bash
-# Clone the repository
-git clone https://github.com/ik123a/logpolicysmith.git
-cd logpolicysmith
-
-# Set up virtual environment
-python -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate on Windows
-
-# Install in editable mode with dependencies
-pip install -e .
+```sh
+python -m venv .venv
+# Windows PowerShell:
+.venv\Scripts\Activate.ps1
+# macOS/Linux instead: source .venv/bin/activate
+python -m pip install -e .
+python -m src.cli generate --input tests/resources/sample_logs.jsonl --mock --format yaml
 ```
 
-### 2. Configure default provider settings
+Installation downloads declared dependencies. The mock command does not call a model, use credentials or access a personal audit database. It prints a Rich panel to the terminal, rather than writing a deployable policy file.
 
-Create or modify `config/default.yaml` in the project root:
+Actual mock-command excerpt, captured on 9 November 2026:
 
-```yaml
-# config/default.yaml
-llm:
-  provider: "ollama"                         # Choice: "ollama", "nvidia", or "openai"
-  model: "llama3.2:3b"
-  ollama_host: "http://localhost:11434"
-  nvidia_model: "meta/llama-3.1-70b-instruct"
-  nvidia_base_url: "https://integrate.api.nvidia.com/v1"
-  openai_model: "gpt-4o"
-  openai_base_url: "https://api.openai.com/v1"
+```text
+[OK] Loaded 4 events from tests/resources/sample_logs.jsonl.
+[MOCK] Simulating behavior summarization...
+[OK] Behavior summary successfully generated (mock).
+[MOCK] Synthesizing security policy...
+[OK] Policy successfully generated (mock).
 
-policy:
-  default_format: "rego"                     # Choice: "rego", "cel", "yaml", "vaultmind"
+package: agent.policy
+allows:
+- action: read
+  tool: file_reader
+  path_prefix: /data/approved/
+- action: write
+  tool: file_writer
+  path_prefix: /data/output/
+denies:
+- action: exec
+  tool: terminal_runner
 ```
 
----
+The YAML excerpt is the contents of the output panel. It is an application example, not an enforcement result. This CLI has no graphical application screen; the real command output and architecture diagram visualize its implemented flow.
 
-## 💻 CLI Usage
+## Model-backed generation
 
-The package installs a global executable command `logpolicysmith`.
+`config/default.yaml` selects the provider, model, endpoint and default output format. Source-backed options are available with:
 
-### Basic Generation (Local Ollama)
-```bash
-# Ingest local JSONL logs and generate OPA Rego policies
-logpolicysmith generate --input audit.jsonl --format rego
+```sh
+python -m src.cli generate --help
 ```
 
-### Direct VaultMind Integration
-```bash
-# Query the local VaultMind SQLite database (vault.db) and generate VaultMind YAML rules
-logpolicysmith generate --vaultmind --db-path ~/.vaultmind/vault.db --format vaultmind
+- `--provider ollama` uses a separately running Ollama server and a model you have installed. Local model execution was not tested in this audit.
+- `--provider nvidia` reads `NVIDIA_API_KEY`; `--provider openai` reads `OPENAI_API_KEY`. Those modes send the prepared event context and summary to the configured remote endpoint and may incur charges. The configured model names are defaults in this repository, not a claim of current provider availability.
+- `--model`, `--host` and `--format` override selected defaults. Prefer environment variables to passing API keys in shell arguments.
+- `--vaultmind --db-path /path/to/audit.db --days 7` reads the expected `audit_log` schema. Without an explicit path it looks under the current user's `.vaultmind` directory. Use only a database you are authorized to inspect.
+
+Normalization retains each original event in `metadata`. The model context includes resource names and the first five normalized events, including that metadata. There is no automatic secret or personal-data redaction. Sanitize inputs before using any provider, and review the endpoint before sending private logs.
+
+## Source and checks
+
+- `src/cli.py`: input selection, configuration, mock mode and the two generation passes.
+- `src/ingester/`: JSONL parsing and normalized event model. Malformed JSON lines are skipped; parsed non-object records are not comprehensively validated.
+- `src/integrations/vaultmind.py`: SQLite event retrieval. Connections now close on success, missing-table and failed-query paths.
+- `src/summarizer/` and `src/generator/`: provider adapters and prompt loading.
+- `src/output/`: structured demonstration formatters.
+- `src/validator/policy_tester.py`: optional OPA syntax-check helper and a keyword-based historical-log simulation. The normal generate command does not invoke them.
+
+```sh
+python -m pip install pytest
+python -m pytest tests -q
 ```
 
-### Cloud Provider (NVIDIA API Catalog)
-```bash
-# Run using NVIDIA cloud API key
-export NVIDIA_API_KEY="your-nvapi-key"
-logpolicysmith generate --input audit.jsonl --format rego --provider nvidia
-```
+Six offline tests passed on 9 November 2026: three existing ingestion/normalization tests and three real temporary-SQLite lifecycle cases. Before repair, the missing-table and failed-query cases leaked their connections; both regressions failed. No real user database, cloud provider, Ollama model or policy engine was invoked. The local mock smoke used available imports; a fresh full dependency install and installed-wheel behavior remain unverified.
 
-### Generic OpenAI-Compatible Endpoints (DeepSeek, Groq, OpenRouter)
-```bash
-# Run using generic OpenAI-compatible provider
-logpolicysmith generate --input audit.jsonl --format rego \
-  --provider openai \
-  --api-key "your-api-key" \
-  --host "https://api.deepseek.com/v1" \
-  --model "deepseek-chat"
-```
+## Limits before enforcement
 
-### Dry-Run / Offline Validation
-```bash
-# Run in mock mode to verify format outputs without invoking an LLM
-logpolicysmith generate --input tests/resources/sample_logs.jsonl --format vaultmind --mock
-```
+- A model response is returned as text without schema, syntax or decision validation. Logs can contain adversarial instructions, and observed actions do not automatically imply authorized actions.
+- The CEL demonstration formatter ignores deny rules. Rego emits separate allow/deny rules without combining them into a deny-overrides decision and uses syntax that must be checked against the intended OPA version. String values are interpolated without comprehensive escaping.
+- The VaultMind formatter's pattern expansion and schema compatibility have not been integration-tested against a particular VaultMind version. Generic YAML is only a structured draft.
+- The historical-log helper uses keyword checks; it is not an OPA/CEL evaluator or a policy correctness test. The OPA helper is not called by the CLI and still uses a shared temporary filename and shell invocation.
+- Some CLI error paths print a message and return a successful exit status. Config/prompt packaging and fallback behavior need installed-package checks. Do not treat a zero exit status as proof that a valid policy was generated.
+- JSONL input is eventually collected into memory, and representative events/resources are truncated in the prompt. No scale benchmark or regulatory compliance is established.
 
----
+## Repair and rollback
 
-## 🛠️ CLI Options Reference
-
-| Option | Shortcut | Type / Choice | Default | Description |
-|---|---|---|---|---|
-| `--input` | `-i` | Filepath | None | Path to raw JSONL log file to ingest |
-| `--vaultmind` | `-v` | Flag | False | Flag to query SQLite database audit trail |
-| `--db-path` | None | Filepath | None | File path override for VaultMind SQLite database |
-| `--days` | `-d` | Integer | 7 | Days of logs to query from SQLite database |
-| `--format` | `-f` | `rego`, `cel`, `yaml`, `vaultmind` | Config default | Policy format output engine target |
-| `--provider` | `-p` | `ollama`, `nvidia`, `openai` | Config default | LLM execution provider |
-| `--model` | `-m` | String | Config default | Override LLM model name |
-| `--host` | `-h` | URL String | Config default | Override LLM provider endpoint URL |
-| `--api-key` | `-k` | String | None | Override cloud provider API Key |
-| `--mock` | None | Flag | False | Dry-run mock execution for validation |
-
----
-
-## 🔌 Integrating into VaultMind CLI
-
-You can call LogPolicySmith from your Node.js/TypeScript-based VaultMind codebase using a subprocess hook inside your TypeScript files:
-
-```typescript
-import { exec } from 'child_process';
-import * as fs from 'fs';
-
-export function runPolicySmith(sqliteDbPath: string, outputPath: string) {
-  const cmd = `logpolicysmith generate --vaultmind --db-path "${sqliteDbPath}" --format vaultmind --provider nvidia`;
-  
-  exec(cmd, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`Subprocess error: ${error.message}`);
-      return;
-    }
-    
-    // Parse out YAML lines and write to target configuration file
-    const yamlOutput = parseYamlFromConsole(stdout);
-    fs.writeFileSync(outputPath, yamlOutput);
-    console.log(`VaultMind Policy successfully updated at ${outputPath}`);
-  });
-}
-
-function parseYamlFromConsole(output: string): string {
-  return output.split('\n')
-               .filter(line => line.startsWith('|'))
-               .map(line => line.slice(1, -1).trimEnd())
-               .join('\n');
-}
-```
-
----
-
-## 📜 License
-
-This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
+This repair adds unconditional SQLite connection cleanup, three regression cases, a truthful offline example, and an updated description of generation and enforcement limits. Revert the repair commit through normal Git history to undo it. The existing license is in `LICENSE`.

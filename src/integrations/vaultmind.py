@@ -14,6 +14,7 @@ def fetch_vaultmind_logs(days: int = 7, db_path: Path = None) -> List[Dict[str, 
         logger.warning(f"VaultMind SQLite database not found at: {db_path}")
         return []
         
+    conn = None
     try:
         conn = sqlite3.connect(str(db_path))
         cursor = conn.cursor()
@@ -32,7 +33,6 @@ def fetch_vaultmind_logs(days: int = 7, db_path: Path = None) -> List[Dict[str, 
         """, (f'-{days} days',))
         
         rows = cursor.fetchall()
-        conn.close()
         
         return [{
             "timestamp": r[0],
@@ -49,3 +49,6 @@ def fetch_vaultmind_logs(days: int = 7, db_path: Path = None) -> List[Dict[str, 
     except Exception as e:
         logger.error(f"Unexpected error reading VaultMind database: {e}")
         return []
+    finally:
+        if conn is not None:
+            conn.close()
